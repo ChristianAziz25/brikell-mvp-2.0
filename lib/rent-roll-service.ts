@@ -11,6 +11,13 @@ export interface RentRollRow {
   rent_type: string | null;
 }
 
+export interface UnitTypeBreakdown {
+  bolig: number;
+  erhverv: number;
+  parkering: number;
+  andet: number;
+}
+
 export interface SummaryStats {
   total_units: number;
   total_sqm: number;
@@ -18,6 +25,7 @@ export interface SummaryStats {
   avg_rent_per_sqm: number;
   units_with_rent: number;
   units_with_sqm: number;
+  unit_type_breakdown: UnitTypeBreakdown;
 }
 
 export interface SuspiciousRow {
@@ -132,6 +140,19 @@ export function formatRentRollForChat(result: RentRollResult): string {
   lines.push(
     `| **${summary.total_units}** | **${formatDKK(Math.round(summary.total_sqm))} m²** | **${formatDKK(Math.round(summary.total_annual_rent))} kr** | **${formatDKK(Math.round(summary.avg_rent_per_sqm))} kr/m²** |`
   );
+
+  // Unit type breakdown
+  const breakdown = summary.unit_type_breakdown;
+  const breakdownItems: string[] = [];
+  if (breakdown.bolig > 0) breakdownItems.push(`Bolig: ${breakdown.bolig} enheder`);
+  if (breakdown.erhverv > 0) breakdownItems.push(`Erhverv: ${breakdown.erhverv} enheder`);
+  if (breakdown.parkering > 0) breakdownItems.push(`Parkering: ${breakdown.parkering} enheder`);
+  if (breakdown.andet > 0) breakdownItems.push(`Andet: ${breakdown.andet} enheder`);
+
+  if (breakdownItems.length > 0) {
+    lines.push(`\n### Fordeling\n`);
+    breakdownItems.forEach((item) => lines.push(`- ${item}`));
+  }
 
   // Data quality warnings
   if (data_quality.rows_suspicious.length > 0) {

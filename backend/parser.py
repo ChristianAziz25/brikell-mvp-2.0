@@ -45,14 +45,18 @@ class ParseError(Exception):
         }
 
 
-# Danish keywords for header detection (lowercase for matching)
-DANISH_KEYWORDS = [
+# Keywords for header detection (lowercase for matching)
+HEADER_KEYWORDS = [
+    # Danish
     "lejemål", "lejnr", "areal", "m2", "kvm", "leje", "årlig",
     "nr", "bel", "etage", "bem", "bemærkning", "reg", "regulering",
-    "start", "indflytning", "type", "anvendelse"
+    "start", "indflytning", "type", "anvendelse",
+    # English
+    "unit_id", "size_sqm", "sqm", "area", "rent", "floor", "address",
+    "zipcode", "postal", "door", "rooms", "lease", "tenant"
 ]
 
-# Column mapping from Danish to standard field names
+# Column mapping to standard field names (supports Danish and English)
 COLUMN_MAPPING = {
     # Unit ID
     "lejnr": "unit_id",
@@ -60,45 +64,114 @@ COLUMN_MAPPING = {
     "lejenr": "unit_id",
     "lejemålsnr": "unit_id",
     "nr": "unit_id",
+    "unit_id": "unit_id",
     # Square meters
     "areal": "sqm",
     "m2": "sqm",
     "kvm": "sqm",
     "m²": "sqm",
     "kvadratmeter": "sqm",
+    "size_sqm": "sqm",
+    "sqm": "sqm",
+    "area": "sqm",
+    "size": "sqm",
     # Annual rent
     "leje": "annual_rent",
     "årlig": "annual_rent",
     "årligleje": "annual_rent",
     "årlig leje": "annual_rent",
     "husleje": "annual_rent",
+    "rent_current_gri": "annual_rent",
+    "rent_current": "annual_rent",
+    "annual_rent": "annual_rent",
+    "rent": "annual_rent",
+    "gri": "annual_rent",
     # Floor
     "bel": "floor",
     "etage": "floor",
     "beliggenhed": "floor",
+    "unit_floor": "floor",
+    "floor": "floor",
     # Unit type
     "type": "unit_type",
     "anvendelse": "unit_type",
     "lejemålstype": "unit_type",
+    "unit_type": "unit_type",
     # Lease start
     "start": "lease_start",
     "indflytning": "lease_start",
     "startdato": "lease_start",
     "indflytningsdato": "lease_start",
+    "lease_start": "lease_start",
+    # Lease end
+    "lease_end": "lease_end",
+    "slutdato": "lease_end",
+    "fraflytning": "lease_end",
     # Notes
     "bem": "notes",
     "bemærkning": "notes",
     "bemærkninger": "notes",
     "note": "notes",
     "noter": "notes",
+    "notes": "notes",
     # Rent adjustment
     "reg": "rent_adjustment",
     "regulering": "rent_adjustment",
     "lejeregulering": "rent_adjustment",
+    # Address
+    "unit_address": "address",
+    "address": "address",
+    "adresse": "address",
+    # Postal code
+    "unit_zipcode": "postal_code",
+    "zipcode": "postal_code",
+    "postal_code": "postal_code",
+    "postnr": "postal_code",
+    "postnummer": "postal_code",
+    # Door
+    "unit_door": "door",
+    "door": "door",
+    "dør": "door",
+    # Rooms
+    "rooms_amount": "rooms",
+    "rooms": "rooms",
+    "værelser": "rooms",
+    # Tenant
+    "tenant_name1": "tenant_name",
+    "tenant_name": "tenant_name",
+    "lejer": "tenant_name",
+    "lejernavn": "tenant_name",
 }
 
 # End row indicators
 END_ROW_KEYWORDS = ["total", "sum", "i alt", "ialt", "samlet", "subtotal"]
+
+# Unit type categorization
+UNIT_TYPE_BOLIG = ["apartment", "residential", "bolig", "lejlighed", "værelse", "room"]
+UNIT_TYPE_ERHVERV = ["commercial", "retail", "office", "erhverv", "kontor", "butik", "lager", "warehouse"]
+UNIT_TYPE_PARKERING = ["parking", "parkering", "p-plads", "garage", "carport"]
+
+
+def categorize_unit_type(unit_type_value: str) -> str:
+    """Categorize unit type into Bolig, Erhverv, Parkering, or Andet."""
+    if not unit_type_value:
+        return "andet"
+
+    val_lower = unit_type_value.lower().strip()
+
+    for keyword in UNIT_TYPE_BOLIG:
+        if keyword in val_lower:
+            return "bolig"
+
+    for keyword in UNIT_TYPE_ERHVERV:
+        if keyword in val_lower:
+            return "erhverv"
+
+    for keyword in UNIT_TYPE_PARKERING:
+        if keyword in val_lower:
+            return "parkering"
+
+    return "andet"
 
 
 def detect_file_type(file_path: str) -> str:
@@ -184,7 +257,7 @@ def find_header_row(rows: list, max_rows: int = 15) -> tuple[int, list]:
         # Score based on keyword matches
         score = 0
         for cell in cells:
-            for keyword in DANISH_KEYWORDS:
+            for keyword in HEADER_KEYWORDS:
                 if keyword in cell:
                     score += 1
                     break  # Only count each cell once
@@ -263,10 +336,6 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
     Calculate summary statistics from parsed rows.
     Returns (summary, data_quality) tuple.
     """
-    # Find column indices for sqm and rent
-    sqm_idx = None
-    rent_idx = None
-
     # Reverse mapping: standard name -> column index
     standard_to_idx = {}
     for col_idx, col_name in enumerate(columns):
@@ -276,6 +345,7 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
 
     sqm_idx = standard_to_idx.get("sqm")
     rent_idx = standard_to_idx.get("annual_rent")
+    unit_type_idx = standard_to_idx.get("unit_type")
 
     # Initialize counters
     total_sqm = 0.0
@@ -284,6 +354,14 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
     units_with_rent = 0
     rent_per_sqm_sum = 0.0
     rent_per_sqm_count = 0
+
+    # Unit type breakdown
+    unit_type_counts = {
+        "bolig": 0,
+        "erhverv": 0,
+        "parkering": 0,
+        "andet": 0,
+    }
 
     rows_missing_sqm = []
     rows_missing_rent = []
@@ -327,27 +405,19 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
         else:
             rows_missing_rent.append(row_num)
 
-        # Calculate rent per sqm for this row and check for suspicious values
+        # Categorize unit type
+        if unit_type_idx is not None and unit_type_idx < len(raw):
+            unit_type_value = raw[unit_type_idx]
+            category = categorize_unit_type(str(unit_type_value) if unit_type_value else "")
+            unit_type_counts[category] += 1
+        else:
+            unit_type_counts["andet"] += 1
+
+        # Calculate rent per sqm for this row
         if sqm_value is not None and sqm_value > 0 and rent_value is not None and rent_value > 0:
             row_rent_per_sqm = rent_value / sqm_value
             rent_per_sqm_sum += row_rent_per_sqm
             rent_per_sqm_count += 1
-
-            # Check for suspicious values
-            if row_rent_per_sqm < 200:
-                rows_suspicious.append({
-                    "row_num": row_num,
-                    "issue": "Rent unusually low",
-                    "value": round(row_rent_per_sqm, 2),
-                    "unit": "kr/m²"
-                })
-            elif row_rent_per_sqm > 3000:
-                rows_suspicious.append({
-                    "row_num": row_num,
-                    "issue": "Rent unusually high",
-                    "value": round(row_rent_per_sqm, 2),
-                    "unit": "kr/m²"
-                })
 
     # Calculate average rent per sqm
     avg_rent_per_sqm = 0.0
@@ -367,6 +437,7 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
         "avg_rent_per_sqm": round(avg_rent_per_sqm, 2),
         "units_with_rent": units_with_rent,
         "units_with_sqm": units_with_sqm,
+        "unit_type_breakdown": unit_type_counts,
     }
 
     data_quality = {
