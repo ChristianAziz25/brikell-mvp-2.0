@@ -7,6 +7,7 @@ import { ChatMessage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { LoadingIndicator } from './loading-indicator';
 import { FileIconByType } from '@/components/icons/file-icons';
+import { RentRollSummaryCard } from './rent-roll-summary-card';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -48,6 +49,8 @@ export function MessageItem({ message }: MessageItemProps) {
               <div className="text-foreground whitespace-pre-wrap">
                 {message.content}
               </div>
+            ) : message.rentRollResult ? (
+              <RentRollSummaryCard result={message.rentRollResult} />
             ) : (
               <div className="text-foreground prose prose-sm max-w-none">
                 <ReactMarkdown
@@ -83,7 +86,7 @@ export function MessageItem({ message }: MessageItemProps) {
               </div>
             )}
 
-            {!message.isStreaming && message.content && !isUser && (
+            {!message.isStreaming && message.content && !isUser && !message.rentRollResult && (
               <button
                 onClick={handleCopy}
                 className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"

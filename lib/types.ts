@@ -1,3 +1,5 @@
+import { RentRollResult } from './rent-roll-service';
+
 export interface Attachment {
   id: string;
   file: File;
@@ -15,6 +17,7 @@ export interface ChatMessage {
   isLoading?: boolean;
   isError?: boolean;
   isStreaming?: boolean;
+  rentRollResult?: RentRollResult;
 }
 
 export const MAX_FILES = 10;

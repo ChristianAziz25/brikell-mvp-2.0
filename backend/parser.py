@@ -141,6 +141,12 @@ COLUMN_MAPPING = {
     "tenant_name": "tenant_name",
     "lejer": "tenant_name",
     "lejernavn": "tenant_name",
+    # Unit status (for vacancy detection)
+    "units_status": "unit_status",
+    "unit_status": "unit_status",
+    "status": "unit_status",
+    "lejestatus": "unit_status",
+    "udlejningsstatus": "unit_status",
 }
 
 # End row indicators
@@ -150,6 +156,9 @@ END_ROW_KEYWORDS = ["total", "sum", "i alt", "ialt", "samlet", "subtotal"]
 UNIT_TYPE_BOLIG = ["apartment", "residential", "bolig", "lejlighed", "værelse", "room"]
 UNIT_TYPE_ERHVERV = ["commercial", "retail", "office", "erhverv", "kontor", "butik", "lager", "warehouse"]
 UNIT_TYPE_PARKERING = ["parking", "parkering", "p-plads", "garage", "carport"]
+
+# Vacancy status keywords
+VACANCY_KEYWORDS = ["vacant", "ledig", "tom", "fraflyttet", "empty", "available", "til leje"]
 
 
 def categorize_unit_type(unit_type_value: str) -> str:
@@ -172,6 +181,20 @@ def categorize_unit_type(unit_type_value: str) -> str:
             return "parkering"
 
     return "andet"
+
+
+def is_unit_vacant(status_value: str) -> bool:
+    """Check if a unit is vacant based on status value."""
+    if not status_value:
+        return False
+
+    val_lower = status_value.lower().strip()
+
+    for keyword in VACANCY_KEYWORDS:
+        if keyword in val_lower:
+            return True
+
+    return False
 
 
 def detect_file_type(file_path: str) -> str:
@@ -346,21 +369,23 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
     sqm_idx = standard_to_idx.get("sqm")
     rent_idx = standard_to_idx.get("annual_rent")
     unit_type_idx = standard_to_idx.get("unit_type")
+    unit_status_idx = standard_to_idx.get("unit_status")
 
     # Initialize counters
     total_sqm = 0.0
     total_rent = 0.0
+    total_vacant = 0
     units_with_sqm = 0
     units_with_rent = 0
     rent_per_sqm_sum = 0.0
     rent_per_sqm_count = 0
 
-    # Unit type breakdown
-    unit_type_counts = {
-        "bolig": 0,
-        "erhverv": 0,
-        "parkering": 0,
-        "andet": 0,
+    # Unit type breakdown with count, sqm, rent, and vacant per category
+    unit_type_breakdown = {
+        "bolig": {"count": 0, "sqm": 0.0, "rent": 0.0, "vacant": 0},
+        "erhverv": {"count": 0, "sqm": 0.0, "rent": 0.0, "vacant": 0},
+        "parkering": {"count": 0, "sqm": 0.0, "rent": 0.0, "vacant": 0},
+        "andet": {"count": 0, "sqm": 0.0, "rent": 0.0, "vacant": 0},
     }
 
     rows_missing_sqm = []
@@ -405,13 +430,25 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
         else:
             rows_missing_rent.append(row_num)
 
-        # Categorize unit type
+        # Categorize unit type and accumulate sqm/rent per category
         if unit_type_idx is not None and unit_type_idx < len(raw):
             unit_type_value = raw[unit_type_idx]
             category = categorize_unit_type(str(unit_type_value) if unit_type_value else "")
-            unit_type_counts[category] += 1
         else:
-            unit_type_counts["andet"] += 1
+            category = "andet"
+
+        unit_type_breakdown[category]["count"] += 1
+        if sqm_value is not None and sqm_value > 0:
+            unit_type_breakdown[category]["sqm"] += sqm_value
+        if rent_value is not None and rent_value > 0:
+            unit_type_breakdown[category]["rent"] += rent_value
+
+        # Check vacancy status
+        if unit_status_idx is not None and unit_status_idx < len(raw):
+            status_value = raw[unit_status_idx]
+            if is_unit_vacant(str(status_value) if status_value else ""):
+                unit_type_breakdown[category]["vacant"] += 1
+                total_vacant += 1
 
         # Calculate rent per sqm for this row
         if sqm_value is not None and sqm_value > 0 and rent_value is not None and rent_value > 0:
@@ -430,6 +467,11 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
         if col and col.strip() and col not in column_mapping:
             unmapped_columns.append(col)
 
+    # Round sqm and rent values in breakdown
+    for category in unit_type_breakdown:
+        unit_type_breakdown[category]["sqm"] = round(unit_type_breakdown[category]["sqm"], 2)
+        unit_type_breakdown[category]["rent"] = round(unit_type_breakdown[category]["rent"], 2)
+
     summary = {
         "total_units": len(rows),
         "total_sqm": round(total_sqm, 2),
@@ -437,7 +479,8 @@ def calculate_summary_stats(rows: list, columns: list, column_mapping: dict) -> 
         "avg_rent_per_sqm": round(avg_rent_per_sqm, 2),
         "units_with_rent": units_with_rent,
         "units_with_sqm": units_with_sqm,
-        "unit_type_breakdown": unit_type_counts,
+        "total_vacant": total_vacant,
+        "unit_type_breakdown": unit_type_breakdown,
     }
 
     data_quality = {
