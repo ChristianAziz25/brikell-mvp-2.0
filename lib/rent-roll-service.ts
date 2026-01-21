@@ -11,11 +11,18 @@ export interface RentRollRow {
   rent_type: string | null;
 }
 
+export interface UnitTypeStat {
+  count: number;
+  sqm: number;
+  rent: number;
+  vacant: number;
+}
+
 export interface UnitTypeBreakdown {
-  bolig: number;
-  erhverv: number;
-  parkering: number;
-  andet: number;
+  bolig: UnitTypeStat;
+  erhverv: UnitTypeStat;
+  parkering: UnitTypeStat;
+  andet: UnitTypeStat;
 }
 
 export interface SummaryStats {
@@ -25,6 +32,7 @@ export interface SummaryStats {
   avg_rent_per_sqm: number;
   units_with_rent: number;
   units_with_sqm: number;
+  total_vacant: number;
   unit_type_breakdown: UnitTypeBreakdown;
 }
 
@@ -109,11 +117,19 @@ export async function parseRentRoll(file: File): Promise<RentRollResponse> {
 }
 
 /**
- * Check if a file is a supported rent roll format
+ * Check if a file is a supported rent roll format (Excel only)
  */
 export function isRentRollFile(file: File): boolean {
   const ext = file.name.toLowerCase().split('.').pop();
-  return ext === 'xlsx' || ext === 'xls' || ext === 'pdf';
+  return ext === 'xlsx' || ext === 'xls';
+}
+
+/**
+ * Check if a file is a PDF (for investment memo analysis)
+ */
+export function isPdfFile(file: File): boolean {
+  const ext = file.name.toLowerCase().split('.').pop();
+  return ext === 'pdf';
 }
 
 /**
@@ -144,10 +160,10 @@ export function formatRentRollForChat(result: RentRollResult): string {
   // Unit type breakdown
   const breakdown = summary.unit_type_breakdown;
   const breakdownItems: string[] = [];
-  if (breakdown.bolig > 0) breakdownItems.push(`Bolig: ${breakdown.bolig} enheder`);
-  if (breakdown.erhverv > 0) breakdownItems.push(`Erhverv: ${breakdown.erhverv} enheder`);
-  if (breakdown.parkering > 0) breakdownItems.push(`Parkering: ${breakdown.parkering} enheder`);
-  if (breakdown.andet > 0) breakdownItems.push(`Andet: ${breakdown.andet} enheder`);
+  if (breakdown.bolig.count > 0) breakdownItems.push(`Bolig: ${breakdown.bolig.count} enheder`);
+  if (breakdown.erhverv.count > 0) breakdownItems.push(`Erhverv: ${breakdown.erhverv.count} enheder`);
+  if (breakdown.parkering.count > 0) breakdownItems.push(`Parkering: ${breakdown.parkering.count} enheder`);
+  if (breakdown.andet.count > 0) breakdownItems.push(`Andet: ${breakdown.andet.count} enheder`);
 
   if (breakdownItems.length > 0) {
     lines.push(`\n### Fordeling\n`);

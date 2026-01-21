@@ -80,33 +80,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send to OpenAI for comprehensive analysis with streaming
+    // Send to OpenAI for investment memo analysis with streaming
     const stream = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
           content:
-            'You are a senior financial analyst. Provide focused, precise analysis using short prose paragraphs (4-6 sentences each). No fluff — be direct and actionable.',
+            'You are a senior real estate investment analyst. Extract and analyze investment memo information with precision. Use Danish for section headers but English for analysis. Format currency in DKK where applicable.',
         },
         {
           role: 'user',
-          content: `Analyze this document with exactly these 5 sections. Each section should be a focused prose paragraph of 4-6 sentences. No bullet points.
+          content: `Analyze this investment memo and extract information into these sections. Use bullet points for key data, prose for analysis.
 
-## Key Parties
-Identify all parties involved, their roles, relationships, and stakes in the document.
+## Ejendom (Property)
+- Property name and address
+- Property type (residential, commercial, mixed-use)
+- Total area (m²) and number of units
+- Year built / renovation status
 
-## Primary Findings
-The most significant discoveries, conclusions, and implications from the document.
+## Pris & Afkast (Price & Returns)
+- Purchase price (DKK)
+- Net Operating Income (NOI)
+- Cap rate (%)
+- Expected yield / IRR
+- Price per m²
 
-## Financial Deep Dive
-Comprehensive financials: revenue, margins (gross/net), cash flow, burn rate, debt levels, projections, and any red flags.
+## Vigtige Datoer (Key Dates)
+- Closing date
+- Due diligence deadline
+- Financing contingency
+- Other critical milestones
 
-## Market Size & Competitive Analysis
-TAM/SAM/SOM, market dynamics, competitive positioning, key competitors, differentiation.
+## Deal Highlights
+3-5 key reasons this investment is attractive. Be specific about value-add opportunities, location advantages, or market positioning.
 
-## Potential Capex Risks
-Equipment and infrastructure capital risks: major equipment needs, facility investments, technology infrastructure, maintenance obligations, replacement cycles.
+## Risici (Risks)
+Identify material risks: market, tenant, regulatory, capex, financing. Be direct about concerns.
+
+## Lejere (Tenants)
+- Major tenants and their lease terms
+- Vacancy rate
+- WALT (Weighted Average Lease Term)
+- Tenant concentration risk
+
+If any information is not found in the document, note "Ikke angivet" (Not specified).
 
 Document text:
 ${extractedText}`,

@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/ui/sidebar';
 import { ChatMessage, Attachment, MAX_FILES, MAX_FILE_SIZE_BYTES } from '@/lib/types';
 import { generateMockResponse } from '@/lib/mock-response';
 import { parsePdfStream } from '@/lib/pdf-service';
+import { parseRentRoll, isRentRollFile, isPdfFile } from '@/lib/rent-roll-service';
 
 export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -85,58 +86,117 @@ export function ChatContainer() {
     const sentAttachments = [...pendingAttachments];
     setPendingAttachments([]);
 
-    // Check for PDF attachments
-    const pdfAttachment = sentAttachments.find(
-      (a) => a.type === 'application/pdf'
-    );
+    // Check for rent roll files (Excel only)
+    const rentRollAttachment = sentAttachments.find((a) => isRentRollFile(a.file));
+    // Check for PDF files (investment memos)
+    const pdfAttachment = sentAttachments.find((a) => isPdfFile(a.file));
 
-    if (pdfAttachment) {
-      // Create streaming placeholder
-      const streamingId = uuidv4();
+    if (rentRollAttachment) {
+      // Create loading placeholder
+      const loadingId = uuidv4();
       setMessages((prev) => [
         ...prev,
         {
-          id: streamingId,
+          id: loadingId,
           role: 'assistant',
           content: '',
           attachments: [],
           timestamp: new Date(),
           isLoading: true,
-          isStreaming: true,
         },
       ]);
       setIsAssistantTyping(true);
 
-      // Parse PDF with streaming
-      const result = await parsePdfStream(
-        pdfAttachment.file,
-        (chunk) => {
-          // Update message content incrementally
+      // Parse rent roll via backend
+      const result = await parseRentRoll(rentRollAttachment.file);
+
+      if (result.success) {
+        // Store the parsed result for the summary card component
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === loadingId
+              ? {
+                  ...msg,
+                  content: '',
+                  isLoading: false,
+                  rentRollResult: result,
+                }
+              : msg
+          )
+        );
+      } else {
+        // Show error
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === loadingId
+              ? {
+                  ...msg,
+                  content: `**Error parsing file:** ${result.message}`,
+                  isLoading: false,
+                  isError: true,
+                }
+              : msg
+          )
+        );
+        toast.error(result.message);
+      }
+
+      setIsAssistantTyping(false);
+    } else if (pdfAttachment) {
+      // Create loading placeholder for PDF analysis
+      const loadingId = uuidv4();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: loadingId,
+          role: 'assistant',
+          content: 'Analyserer dokument...',
+          attachments: [],
+          timestamp: new Date(),
+          isLoading: true,
+        },
+      ]);
+      setIsAssistantTyping(true);
+
+      try {
+        // Parse PDF via OpenAI streaming
+        await parsePdfStream(pdfAttachment.file, (chunk) => {
           setMessages((prev) =>
             prev.map((msg) =>
-              msg.id === streamingId
-                ? { ...msg, content: msg.content + chunk, isLoading: false }
+              msg.id === loadingId
+                ? {
+                    ...msg,
+                    content: msg.content === 'Analyserer dokument...' ? chunk : msg.content + chunk,
+                    isLoading: true,
+                  }
                 : msg
             )
           );
-        }
-      );
+        });
 
-      // Finalize the message
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === streamingId
-            ? {
-                ...msg,
-                isStreaming: false,
-                isError: !result.success,
-              }
-            : msg
-        )
-      );
-
-      if (!result.success) {
-        toast.error(result.error);
+        // Mark as complete
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === loadingId
+              ? { ...msg, isLoading: false }
+              : msg
+          )
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to analyze PDF';
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === loadingId
+              ? {
+                  ...msg,
+                  content: `**Error analyzing PDF:** ${errorMessage}`,
+                  isLoading: false,
+                  isError: true,
+                }
+              : msg
+          )
+        );
+        toast.error(errorMessage);
       }
 
       setIsAssistantTyping(false);
