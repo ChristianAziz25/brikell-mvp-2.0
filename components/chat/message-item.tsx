@@ -38,7 +38,7 @@ export function MessageItem({ message }: MessageItemProps) {
           message.isError && 'text-destructive'
         )}
       >
-        <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+        <div className="text-[10px] text-gray-400 mb-1 uppercase tracking-wide">
           {isUser ? 'You' : 'Assistant'}
         </div>
 

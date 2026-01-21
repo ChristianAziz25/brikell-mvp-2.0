@@ -24,15 +24,15 @@ interface CombinedAnalysisCardProps {
 
 function ProcessingLoadingView({ status }: { status: ProcessingStatus }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-8">
-      <p className="text-sm text-gray-500 mb-6">{status.currentStep}</p>
-      <div className="w-80 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+    <div className="py-4">
+      <p className="text-xs text-gray-400 mb-2">{status.currentStep}</p>
+      <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
         <div
-          className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
+          className="h-full bg-gray-400 rounded-full transition-all duration-500 ease-out"
           style={{ width: `${status.progress}%` }}
         />
       </div>
-      <p className="text-xs text-gray-400 mt-3">{status.progress}%</p>
+      <p className="text-[10px] text-gray-300 mt-1.5">{status.progress}%</p>
     </div>
   );
 }
@@ -251,11 +251,7 @@ export function CombinedAnalysisCard({ result, isProcessing }: CombinedAnalysisC
 
   // Show only loading bar while processing
   if (isProcessing && processingStatus.progress < 100) {
-    return (
-      <div className="bg-white rounded-lg max-w-2xl">
-        <ProcessingLoadingView status={processingStatus} />
-      </div>
-    );
+    return <ProcessingLoadingView status={processingStatus} />;
   }
 
   const hasRentRoll = !!rentRoll;
