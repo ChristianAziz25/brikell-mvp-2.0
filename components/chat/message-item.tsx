@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { LoadingIndicator } from './loading-indicator';
 import { FileIconByType } from '@/components/icons/file-icons';
 import { RentRollSummaryCard } from './rent-roll-summary-card';
+import { CombinedAnalysisCard } from './combined-analysis-card';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -41,8 +42,12 @@ export function MessageItem({ message }: MessageItemProps) {
           {isUser ? 'You' : 'Assistant'}
         </div>
 
-        {message.isLoading ? (
+        {message.isLoading && message.combinedResult ? (
+          <CombinedAnalysisCard result={message.combinedResult} isProcessing={true} />
+        ) : message.isLoading ? (
           <LoadingIndicator />
+        ) : message.combinedResult ? (
+          <CombinedAnalysisCard result={message.combinedResult} />
         ) : (
           <>
             {isUser ? (

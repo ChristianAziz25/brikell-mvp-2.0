@@ -8,6 +8,21 @@ export interface Attachment {
   type: string; // MIME type
 }
 
+export interface ProcessingStatus {
+  excelStatus: 'pending' | 'processing' | 'complete' | 'error' | 'skipped';
+  pdfStatus: 'pending' | 'processing' | 'complete' | 'error' | 'skipped';
+  excelError?: string;
+  pdfError?: string;
+  currentStep: string;
+  progress: number; // 0-100
+}
+
+export interface CombinedAnalysisResult {
+  rentRoll?: RentRollResult;
+  investmentMemo?: string;
+  processingStatus: ProcessingStatus;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -18,6 +33,7 @@ export interface ChatMessage {
   isError?: boolean;
   isStreaming?: boolean;
   rentRollResult?: RentRollResult;
+  combinedResult?: CombinedAnalysisResult;
 }
 
 export const MAX_FILES = 10;

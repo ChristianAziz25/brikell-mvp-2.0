@@ -7,7 +7,7 @@ import { ChatComposer } from './chat-composer';
 import { MessageList } from './message-list';
 import { AttachmentDropzone } from './attachment-dropzone';
 import { Sidebar } from '@/components/ui/sidebar';
-import { ChatMessage, Attachment, MAX_FILES, MAX_FILE_SIZE_BYTES } from '@/lib/types';
+import { ChatMessage, Attachment, MAX_FILES, MAX_FILE_SIZE_BYTES, CombinedAnalysisResult, ProcessingStatus } from '@/lib/types';
 import { generateMockResponse } from '@/lib/mock-response';
 import { parsePdfStream } from '@/lib/pdf-service';
 import { parseRentRoll, isRentRollFile, isPdfFile } from '@/lib/rent-roll-service';
@@ -67,6 +67,180 @@ export function ChatContainer() {
     setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  const processMultiFileUpload = useCallback(async (excelAttachment: Attachment, pdfAttachment: Attachment) => {
+    const loadingId = uuidv4();
+
+    // Initial combined result with pending status
+    const initialStatus: ProcessingStatus = {
+      excelStatus: 'pending',
+      pdfStatus: 'pending',
+      currentStep: 'Analyserer rent roll...',
+      progress: 0,
+    };
+
+    const initialResult: CombinedAnalysisResult = {
+      processingStatus: initialStatus,
+    };
+
+    // Create loading message with combined result
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: loadingId,
+        role: 'assistant',
+        content: '',
+        attachments: [],
+        timestamp: new Date(),
+        isLoading: true,
+        combinedResult: initialResult,
+      },
+    ]);
+    setIsAssistantTyping(true);
+
+    let excelResult: CombinedAnalysisResult['rentRoll'] | undefined;
+    let excelError: string | undefined;
+
+    // Step 1: Process Excel file
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === loadingId
+          ? {
+              ...msg,
+              combinedResult: {
+                ...msg.combinedResult!,
+                processingStatus: {
+                  ...msg.combinedResult!.processingStatus,
+                  excelStatus: 'processing',
+                  currentStep: 'Analyserer rent roll...',
+                  progress: 30,
+                },
+              },
+            }
+          : msg
+      )
+    );
+
+    const rentRollResponse = await parseRentRoll(excelAttachment.file);
+
+    if (rentRollResponse.success) {
+      excelResult = rentRollResponse;
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingId
+            ? {
+                ...msg,
+                combinedResult: {
+                  ...msg.combinedResult!,
+                  rentRoll: rentRollResponse,
+                  processingStatus: {
+                    ...msg.combinedResult!.processingStatus,
+                    excelStatus: 'complete',
+                    currentStep: 'Analyserer investment memo...',
+                    progress: 65,
+                  },
+                },
+              }
+            : msg
+        )
+      );
+    } else {
+      excelError = rentRollResponse.message;
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingId
+            ? {
+                ...msg,
+                combinedResult: {
+                  ...msg.combinedResult!,
+                  processingStatus: {
+                    ...msg.combinedResult!.processingStatus,
+                    excelStatus: 'error',
+                    excelError: rentRollResponse.message,
+                    currentStep: 'Analyserer investment memo...',
+                    progress: 65,
+                  },
+                },
+              }
+            : msg
+        )
+      );
+    }
+
+    // Step 2: Process PDF file
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === loadingId
+          ? {
+              ...msg,
+              combinedResult: {
+                ...msg.combinedResult!,
+                processingStatus: {
+                  ...msg.combinedResult!.processingStatus,
+                  pdfStatus: 'processing',
+                },
+              },
+            }
+          : msg
+      )
+    );
+
+    let memoContent = '';
+    let pdfError: string | undefined;
+
+    try {
+      // Collect PDF content without streaming updates (wait for both to complete)
+      await parsePdfStream(pdfAttachment.file, (chunk) => {
+        memoContent += chunk;
+      });
+
+      // Both complete - show results
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingId
+            ? {
+                ...msg,
+                isLoading: false,
+                combinedResult: {
+                  ...msg.combinedResult!,
+                  investmentMemo: memoContent,
+                  processingStatus: {
+                    ...msg.combinedResult!.processingStatus,
+                    pdfStatus: 'complete',
+                    currentStep: 'Analyse komplet',
+                    progress: 100,
+                  },
+                },
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      pdfError = error instanceof Error ? error.message : 'Failed to analyze PDF';
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingId
+            ? {
+                ...msg,
+                isLoading: false,
+                combinedResult: {
+                  ...msg.combinedResult!,
+                  processingStatus: {
+                    ...msg.combinedResult!.processingStatus,
+                    pdfStatus: 'error',
+                    pdfError,
+                    currentStep: 'Analyse komplet',
+                    progress: 100,
+                  },
+                },
+              }
+            : msg
+        )
+      );
+    }
+
+    setIsAssistantTyping(false);
+  }, []);
+
   const handleSend = useCallback(async () => {
     const content = inputValue.trim();
     if (!content && pendingAttachments.length === 0) return;
@@ -87,11 +261,15 @@ export function ChatContainer() {
     setPendingAttachments([]);
 
     // Check for rent roll files (Excel only)
-    const rentRollAttachment = sentAttachments.find((a) => isRentRollFile(a.file));
+    const excelFiles = sentAttachments.filter((a) => isRentRollFile(a.file));
     // Check for PDF files (investment memos)
-    const pdfAttachment = sentAttachments.find((a) => isPdfFile(a.file));
+    const pdfFiles = sentAttachments.filter((a) => isPdfFile(a.file));
 
-    if (rentRollAttachment) {
+    if (excelFiles.length > 0 && pdfFiles.length > 0) {
+      // Combined processing: Excel + PDF together
+      await processMultiFileUpload(excelFiles[0], pdfFiles[0]);
+    } else if (excelFiles.length > 0) {
+      const rentRollAttachment = excelFiles[0];
       // Create loading placeholder
       const loadingId = uuidv4();
       setMessages((prev) => [
@@ -142,7 +320,8 @@ export function ChatContainer() {
       }
 
       setIsAssistantTyping(false);
-    } else if (pdfAttachment) {
+    } else if (pdfFiles.length > 0) {
+      const pdfAttachment = pdfFiles[0];
       // Create loading placeholder for PDF analysis
       const loadingId = uuidv4();
       setMessages((prev) => [
