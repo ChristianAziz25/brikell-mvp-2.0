@@ -14,6 +14,7 @@ export interface ChatMessage {
   timestamp: Date;
   isLoading?: boolean;
   isError?: boolean;
+  isStreaming?: boolean;
 }
 
 export const MAX_FILES = 10;

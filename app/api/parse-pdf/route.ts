@@ -87,83 +87,26 @@ export async function POST(request: NextRequest) {
         {
           role: 'system',
           content:
-            'You are a senior financial analyst and legal expert. You provide thorough, professional analysis of financial reports and contracts. Your analysis is detailed, well-structured, and actionable. Each section should contain 2-3 substantive paragraphs with specific bullet points for key details.',
+            'You are a senior financial analyst. Provide focused, precise analysis using short prose paragraphs (4-6 sentences each). No fluff — be direct and actionable.',
         },
         {
           role: 'user',
-          content: `Analyze this document thoroughly and provide a comprehensive analysis with exactly these sections:
+          content: `Analyze this document with exactly these 5 sections. Each section should be a focused prose paragraph of 4-6 sentences. No bullet points.
 
-## Executive Summary
-Provide a 2-3 paragraph overview covering:
-- Document type and purpose
-- Key parties involved
-- Primary findings and implications
-- Overall assessment
+## Key Parties
+Identify all parties involved, their roles, relationships, and stakes in the document.
+
+## Primary Findings
+The most significant discoveries, conclusions, and implications from the document.
 
 ## Financial Deep Dive
-Analyze all financial aspects in detail:
-- Revenue, income, and growth metrics
-- Margins and profitability analysis
-- Cash flow, burn rate, and runway (if applicable)
-- Key financial projections and assumptions
-- Financial red flags or concerns
+Comprehensive financials: revenue, margins (gross/net), cash flow, burn rate, debt levels, projections, and any red flags.
 
-## Market & Area Analysis
-Examine the market context:
-- Total Addressable Market (TAM) if mentioned
-- Target market segments
-- Geographic focus and expansion
-- Industry trends and dynamics
-- Market positioning
+## Market Size & Competitive Analysis
+TAM/SAM/SOM, market dynamics, competitive positioning, key competitors, differentiation.
 
-## Risk Assessment
-Identify and categorize all risks:
-- Operational risks
-- Financial risks
-- Legal and compliance risks
-- Market and competitive risks
-- Execution risks
-- Mitigating factors mentioned
-
-## Competitive Landscape
-Analyze competitive positioning:
-- Key competitors mentioned
-- Competitive advantages
-- Differentiation factors
-- Competitive threats
-- Market share considerations
-
-## Team Evaluation
-Assess the people involved (if applicable):
-- Key personnel and their backgrounds
-- Leadership strengths
-- Notable experience or credentials
-- Gaps or concerns
-
-## Key Metrics & Terms
-Extract important numbers and terms:
-- Financial metrics and KPIs
-- Key contractual terms
-- Important dates and deadlines
-- Obligations and commitments
-
-## Strengths
-List the document's positive aspects:
-- [bullet points]
-
-## Weaknesses
-List concerns and gaps:
-- [bullet points]
-
-## Due Diligence Questions
-List questions that should be asked:
-- [bullet points]
-
-## Overall Assessment
-Provide a final 2-3 paragraph summary with:
-- Key takeaways
-- Recommended next steps
-- Final evaluation
+## Potential Capex Risks
+Equipment and infrastructure capital risks: major equipment needs, facility investments, technology infrastructure, maintenance obligations, replacement cycles.
 
 Document text:
 ${extractedText}`,

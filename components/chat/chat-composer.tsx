@@ -77,11 +77,11 @@ export function ChatComposer({
       className={cn(
         'w-full transition-all duration-500 ease-out',
         isCentered
-          ? 'fixed top-[40%] left-[calc(50%+30px)] -translate-x-1/2 -translate-y-1/2 max-w-2xl px-4'
-          : 'fixed bottom-0 left-[60px] right-0 p-4 bg-white border-t border-border'
+          ? 'fixed top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-2xl px-4 md:left-[calc(50%+30px)]'
+          : 'fixed bottom-0 left-0 right-0 md:left-[60px] p-4 bg-white border-t border-border'
       )}
     >
-      <div className="mx-auto max-w-2xl">
+      <div className="max-w-4xl mx-auto px-6">
         {isCentered && (
           <div className="text-center mb-8">
             <h1 className="text-3xl font-semibold text-foreground mb-2">
@@ -106,6 +106,11 @@ export function ChatComposer({
         )}
 
         <div className="relative">
+          {/* Shading around search bar */}
+          {isCentered && (
+            <div className="absolute -inset-2 bg-gradient-to-b from-gray-100/40 via-gray-50/20 to-transparent rounded-3xl -z-10" />
+          )}
+          
           {/* Left side icon */}
           <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center z-10">
             <TooltipProvider>

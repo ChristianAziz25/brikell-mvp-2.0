@@ -23,7 +23,7 @@ export function SidebarHistory({ isExpanded }: SidebarHistoryProps) {
   return (
     <div className="flex flex-col">
       {isExpanded && (
-        <span className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <span className="px-3 py-1.5 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
           History
         </span>
       )}
@@ -31,13 +31,13 @@ export function SidebarHistory({ isExpanded }: SidebarHistoryProps) {
         <button
           key={item.id}
           className={cn(
-            'flex items-center gap-3 w-full px-4 py-2 text-muted-foreground',
-            'hover:bg-muted hover:text-foreground transition-colors cursor-pointer',
-            'min-h-[40px]'
+            'flex items-center gap-3 w-full px-3 py-2 text-sm text-muted-foreground',
+            'hover:bg-gray-50/50 hover:text-foreground transition-colors duration-150 cursor-pointer',
+            'min-h-[36px] rounded-md'
           )}
         >
-          <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-            <MessageSquare className="h-4 w-4" />
+          <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+            <MessageSquare className="h-3.5 w-3.5" />
           </span>
           <span
             className={cn(

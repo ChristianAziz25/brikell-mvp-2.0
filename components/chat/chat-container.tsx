@@ -6,10 +6,10 @@ import { toast } from 'sonner';
 import { ChatComposer } from './chat-composer';
 import { MessageList } from './message-list';
 import { AttachmentDropzone } from './attachment-dropzone';
-import { Sidebar } from '@/components/sidebar/sidebar';
+import { Sidebar } from '@/components/ui/sidebar';
 import { ChatMessage, Attachment, MAX_FILES, MAX_FILE_SIZE_BYTES } from '@/lib/types';
 import { generateMockResponse } from '@/lib/mock-response';
-import { parsePdf } from '@/lib/pdf-service';
+import { parsePdfStream } from '@/lib/pdf-service';
 
 export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -85,67 +85,92 @@ export function ChatContainer() {
     const sentAttachments = [...pendingAttachments];
     setPendingAttachments([]);
 
-    // Create loading placeholder
-    const loadingId = uuidv4();
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: loadingId,
-        role: 'assistant',
-        content: '',
-        attachments: [],
-        timestamp: new Date(),
-        isLoading: true,
-      },
-    ]);
-    setIsAssistantTyping(true);
-
     // Check for PDF attachments
     const pdfAttachment = sentAttachments.find(
       (a) => a.type === 'application/pdf'
     );
 
-    let response: ChatMessage;
-
     if (pdfAttachment) {
-      // Parse PDF and get key points
-      const result = await parsePdf(pdfAttachment.file);
+      // Create streaming placeholder
+      const streamingId = uuidv4();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: streamingId,
+          role: 'assistant',
+          content: '',
+          attachments: [],
+          timestamp: new Date(),
+          isLoading: true,
+          isStreaming: true,
+        },
+      ]);
+      setIsAssistantTyping(true);
 
-      if (result.success) {
-        response = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: result.content,
-          attachments: [],
-          timestamp: new Date(),
-        };
-      } else {
+      // Parse PDF with streaming
+      const result = await parsePdfStream(
+        pdfAttachment.file,
+        (chunk) => {
+          // Update message content incrementally
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === streamingId
+                ? { ...msg, content: msg.content + chunk, isLoading: false }
+                : msg
+            )
+          );
+        }
+      );
+
+      // Finalize the message
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === streamingId
+            ? {
+                ...msg,
+                isStreaming: false,
+                isError: !result.success,
+              }
+            : msg
+        )
+      );
+
+      if (!result.success) {
         toast.error(result.error);
-        response = {
-          id: uuidv4(),
+      }
+
+      setIsAssistantTyping(false);
+    } else {
+      // Create loading placeholder for non-PDF
+      const loadingId = uuidv4();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: loadingId,
           role: 'assistant',
-          content: 'Sorry, I was unable to process the PDF.',
+          content: '',
           attachments: [],
           timestamp: new Date(),
-          isError: true,
-        };
-      }
-    } else {
+          isLoading: true,
+        },
+      ]);
+      setIsAssistantTyping(true);
+
       // Generate mock response for non-PDF attachments
-      response = await generateMockResponse(
+      const response = await generateMockResponse(
         content,
         sentAttachments,
         simulateErrors
       );
-    }
 
-    // Replace loading message with actual response
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === loadingId ? response : msg
-      )
-    );
-    setIsAssistantTyping(false);
+      // Replace loading message with actual response
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === loadingId ? response : msg
+        )
+      );
+      setIsAssistantTyping(false);
+    }
   }, [inputValue, pendingAttachments, simulateErrors]);
 
   // Drag and drop handlers
@@ -197,7 +222,7 @@ export function ChatContainer() {
         onToggleErrors={() => setSimulateErrors((prev) => !prev)}
       />
 
-      <div className="ml-[60px]">
+      <div className="ml-0 md:ml-[60px]">
         <AttachmentDropzone isActive={isDraggingFile} />
 
         {!isFirstMessage && <MessageList messages={messages} />}
